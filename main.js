@@ -1,6 +1,11 @@
 import { app, BrowserWindow, shell } from 'electron';
 
-const URL = 'https://www.facebook.com/messages';
+const MESSENGER_URL = 'https://www.facebook.com/messages';
+const WEB_PREFERENCES = {
+  partition: 'persist:messenger',
+  contextIsolation: true,
+  nodeIntegration: false,
+};
 
 function isAllowedHost(hostname) {
   return (
@@ -11,30 +16,45 @@ function isAllowedHost(hostname) {
   );
 }
 
-let mainWindow = null;
+// Messenger opens the call window as about:blank, then navigates it.
+function isCallPopup(url) {
+  if (url.startsWith('about:blank')) return true;
+  const { hostname, pathname } = new URL(url);
+  return isAllowedHost(hostname) && /^\/(groupcall|videocall)\//.test(pathname);
+}
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    webPreferences: {
-      partition: 'persist:messenger',
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+function guardNavigation(contents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isCallPopup(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: { webPreferences: WEB_PREFERENCES },
+      };
+    }
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  contents.on('did-create-window', (window) => guardNavigation(window.webContents));
+
+  contents.on('will-navigate', (event, url) => {
     if (!isAllowedHost(new URL(url).hostname)) {
       event.preventDefault();
       shell.openExternal(url);
+      // A blank popup that turned out to be an external link would stay empty.
+      if (contents.getURL().startsWith('about:blank')) contents.close();
     }
   });
+}
 
-  mainWindow.loadURL(URL);
+let mainWindow = null;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({ webPreferences: WEB_PREFERENCES });
+
+  guardNavigation(mainWindow.webContents);
+
+  mainWindow.loadURL(MESSENGER_URL);
 }
 
 if (!app.requestSingleInstanceLock()) {

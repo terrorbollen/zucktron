@@ -21,7 +21,7 @@ pnpm install   # or: npm install / bun install
 pnpm start   # or: npm start / bun run start
 ```
 
-Opens a window loading the URL in `URL` (`main.js`). To point it at a specific conversation instead of the inbox, edit that constant.
+Opens a window loading the URL in `MESSENGER_URL` (`main.js`). To point it at a specific conversation instead of the inbox, edit that constant.
 
 Login persists across restarts via Electron's `persist:messenger` session partition.
 
